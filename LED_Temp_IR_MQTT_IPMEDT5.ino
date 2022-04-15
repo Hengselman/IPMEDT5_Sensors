@@ -67,23 +67,10 @@ void connect_broker(){
 
 //LED display function
 void displayNumber(int num){
-    uint8_t data[] = {0x0}; //empty char for display
-
-    int num2 = num & 10;
-    int num1 = num / 10 % 10;
-    int num0 = num / 100 % 10;
-
-//    while(num0 == 0){
-//      num0 = num1;
-//      num1 = num2;
-//      num2 = NULL;
-//    }
-    
-    switch(num)  
     tm.display(3, 12);      //11 displays a C
-    tm.display(2, num2);   
-    tm.display(1, num1);   
-    tm.display(0, num0);
+    tm.display(2, num % 10);   
+    tm.display(1, num / 10 % 10);   
+    tm.display(0, num / 100 % 10);
 }
 
 void setup() {
@@ -95,29 +82,32 @@ void setup() {
 void loop() {
   Serial.setTimeout(2000);
   
-  int IRsensorValue = analogRead(IRsensorPin);
-  int tempSensorValue = analogRead(tempSensorPin);
-
-  float i = IRsensorValue;
+  int IRsensorValue = analogRead(IRsensorPin)/8;
+  int tempSensorValue = analogRead(tempSensorPin)/8;
+  
   float t = tempSensorValue;
+  float i = 0;
+  if(IRsensorValue < 700){
+    i = 1;
+  }
 
-  Serial.print("IR = ");
-  Serial.println(IRsensorValue+" ");
+  Serial.print(" IR = ");
+  Serial.println(IRsensorValue);
 
-  Serial.print("Temp = ");
-  Serial.println(tempSensorValue+"C ");
+  Serial.print(" Temp = ");
+  Serial.println(tempSensorValue);
   //Also display Temp on LED
 
-  //TODO: TEMP INPUT TO C
-  
+//  TODO: TEMP INPUT TO C
+//
   displayNumber(88);
 
   // MQTT can only transmit strings
-  String IRstring="IR: "+String((float)i)+" & Temp: "+String((float)t)+" C ";
+  String dataString=String((float)i)+"/"+String((float)t);
 
   // PUBLISH to the MQTT Broker (topic = test, defined at the beginning)
-  if (client.publish(test_topic, String(i).c_str())) {
-    Serial.println("IR Value sent!");
+  if (client.publish(test_topic, dataString.c_str())) {
+    Serial.println("Data sent!");
     delay(1000);
   }
   // Again, client.publish will return a boolean value depending on whether it succeded or not.
@@ -125,7 +115,7 @@ void loop() {
   else {
     Serial.println("IR value failed to send. Reconnecting to MQTT Broker and trying again");
     client.connect(clientID, mqtt_username, mqtt_password);
-    delay(100); // This delay ensures that client.publish doesn't clash with the client.connect call
+    delay(1000); // This delay ensures that client.publish doesn't clash with the client.connect call
     client.publish(test_topic, String(i).c_str());
   }      // print new values every 1 Minute
 }
