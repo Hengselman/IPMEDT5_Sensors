@@ -1,7 +1,8 @@
 #include "PubSubClient.h" // Connect and publish to the MQTT broker
 #include "WiFi.h" // Enables the ESP32 to connect to the local network (via WiFi)
 #include <Arduino.h> //Needed for stuff
-#include <TM1637.h> //Needed for LED display
+#include <TM1637Display.h> //Needed for LED display
+#include <TM1637.h>
 
 
 // Init pins
@@ -19,7 +20,8 @@ const char* wifi_password = "Opeenzamehoogte1719"; // Your personal network pass
 
 // MQTT
 const char* mqtt_server = "10.0.1.4";  // IP of the MQTT broker
-const char* test_topic = "livingroom/t1";
+const char* temp_topic = "livingroom/t1";
+const char* flame_topic = "livingroom/f1";
 const char* mqtt_username = "ipmedt5"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "client_test"; // MQTT client ID
@@ -68,7 +70,7 @@ void connect_broker(){
 //LED display function
 void displayNumber(int num){
     tm.display(3, 12);      //11 displays a C
-    tm.display(2, num % 10);   
+    tm.display(2, num % 10);  
     tm.display(1, num / 10 % 10);   
     tm.display(0, num / 100 % 10);
 }
@@ -84,8 +86,8 @@ void loop() {
   
   int IRsensorValue = analogRead(IRsensorPin)/8;
   int tempSensorValue = analogRead(tempSensorPin)/8;
-  
-  float t = tempSensorValue;
+
+  float t = tempSensorValue / 1024.0 * 100; // Magic volt->Celcius mod
   float i = 0;
   if(IRsensorValue < 700){
     i = 1;
@@ -98,15 +100,14 @@ void loop() {
   Serial.println(tempSensorValue);
   //Also display Temp on LED
 
-//  TODO: TEMP INPUT TO C
-//
-  displayNumber(88);
+  displayNumber(t);
 
   // MQTT can only transmit strings
-  String dataString=String((float)i)+"/"+String((float)t);
+  String dataTemp=String((float)t);
+  String dataFlame=String((float)i);
 
-  // PUBLISH to the MQTT Broker (topic = test, defined at the beginning)
-  if (client.publish(test_topic, dataString.c_str())) {
+  // PUBLISH to the MQTT Broker (topic = temp, defined at the beginning)
+  if (client.publish(temp_topic, dataTemp.c_str())) {
     Serial.println("Data sent!");
     delay(1000);
   }
@@ -116,6 +117,20 @@ void loop() {
     Serial.println("IR value failed to send. Reconnecting to MQTT Broker and trying again");
     client.connect(clientID, mqtt_username, mqtt_password);
     delay(1000); // This delay ensures that client.publish doesn't clash with the client.connect call
-    client.publish(test_topic, String(i).c_str());
+    client.publish(temp_topic, String(i).c_str());
+  }      // print new values every 1 Minute
+
+  // PUBLISH to the MQTT Broker (topic = flame, defined at the beginning)
+  if(client.publish(flame_topic, dataFlame.c_str())) {
+    Serial.println("Data sent!");
+    delay(1000);
+  }
+  // Again, client.publish will return a boolean value depending on whether it succeded or not.
+  // If the message failed to send, we will try again, as the connection may have broken.
+  else {
+    Serial.println("IR value failed to send. Reconnecting to MQTT Broker and trying again");
+    client.connect(clientID, mqtt_username, mqtt_password);
+    delay(1000); // This delay ensures that client.publish doesn't clash with the client.connect call
+    client.publish(flame_topic, String(i).c_str());
   }      // print new values every 1 Minute
 }
